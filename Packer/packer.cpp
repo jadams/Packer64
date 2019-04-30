@@ -37,11 +37,11 @@ BYTE* GenerateKey()
 		PROV_RSA_FULL,      // Need to both encrypt and sign.
 		NULL))
 	{
-		DbgPrint("[+] Got context");
+		//DbgPrint("[+] Got context");
 	}
 	else
 	{
-		DbgPrint("[-] Failed to get context");
+		//DbgPrint("[-] Failed to get context");
 	}
 
 	if (CryptGenRandom(		// Generate a random KEY_LEN key
@@ -49,20 +49,20 @@ BYTE* GenerateKey()
 		KEY_LEN,
 		pbData))
 	{
-		DbgPrint("[+] Generated random");
+		//DbgPrint("[+] Generated random");
 	}
 	else
 	{
-		DbgPrint("[-] Failed to generate random");
+		//DbgPrint("[-] Failed to generate random");
 	}
 
 	if (CryptReleaseContext(hCryptProv, 0))
 	{
-		DbgPrint("[+] Released context");
+		//DbgPrint("[+] Released context");
 	}
 	else
 	{
-		DbgPrint("[-] Failed to release context");
+		//DbgPrint("[-] Failed to release context");
 	}
 
 	//cout << "Using key: ";
@@ -86,18 +86,6 @@ bool EncryptPE(std::vector<BYTE>& bin)
 	return true;
 }
 
-bool DecryptPE(std::vector<BYTE>& bin)
-{
-	std::vector<BYTE> pvKey(bin.end() - KEY_LEN, bin.end());
-	bin.erase(bin.end() - KEY_LEN, bin.end());
-	CRC4* rc4;
-	rc4 = new CRC4{};
-	rc4->Initialize(&pvKey.front(), KEY_LEN);
-	rc4->RC4(&bin.front(), bin.size());
-	delete rc4;
-	return true;
-}
-
 bool CompressPE(std::vector<BYTE>& bin)
 {
 	qlz_state_compress* state_compress{};
@@ -111,21 +99,6 @@ bool CompressPE(std::vector<BYTE>& bin)
 	bin.resize(ncsize);
 	delete state_compress;
 	delete[] cbin;
-	return true;
-}
-
-bool DecompressPE(std::vector<BYTE>& bin)
-{
-	qlz_state_decompress* state_decompress{};
-	state_decompress = new qlz_state_decompress;
-	size_t dsize = qlz_size_decompressed((char*)& bin.front());
-	char* dbin{};
-	dbin = new char[dsize];
-	size_t usize = qlz_decompress((char*)&bin.front(), dbin, state_decompress);
-	bin.resize(usize);
-	std::copy(dbin, dbin + usize, &bin.front());
-	delete state_decompress;
-	delete[] dbin;
 	return true;
 }
 
@@ -168,8 +141,13 @@ int main(int argc, char* argv[])
 	std::vector<BYTE> stub = OpenPE("PackerStub.exe");
 	std::cout << "[Stub] Size: " << stub.size() << std::endl;
 
+	BYTE* bNoise = GenerateKey();
+	std::vector<BYTE> vbNoise(bNoise, bNoise+KEY_LEN);
+	stub.insert(stub.end(), vbNoise.begin(), vbNoise.end());
+	std::cout << "[Stub+Noise] Size: " << stub.size() << std::endl;
+
 	stub.insert(stub.end(), bin.begin(), bin.end());
-	std::cout << "[Stub+Bin] Size: " << stub.size() << std::endl;
+	std::cout << "[Stub+Noise+Bin] Size: " << stub.size() << std::endl;
 
 	size_t stSize = bin.size();
 	std::vector<BYTE> vbSize;
@@ -177,7 +155,7 @@ int main(int argc, char* argv[])
 	vbSize.assign(reinterpret_cast<BYTE*>(&stSize), reinterpret_cast<BYTE*>(&stSize) + sizeof(stSize));
 	
 	stub.insert(stub.end(), vbSize.begin(), vbSize.end());
-	std::cout << "[Stub+Bin+Size] Size: " << stub.size() << std::endl;
+	std::cout << "[Stub+Noise+Bin+Size] Size: " << stub.size() << std::endl;
 	WritePE(stub, argv[2]);
 
 	return EXIT_SUCCESS;
