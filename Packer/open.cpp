@@ -13,6 +13,12 @@ std::vector<BYTE> OpenPE(const char* filename)
 		size_of_pe = file.tellg();				// Get filesize
 		file.seekg(0, std::ios::beg);
 
+		if (size_of_pe < 1)
+		{
+			file.close();
+			return {};
+		}
+
 		std::vector<BYTE> bin;
 		bin.reserve(size_of_pe);					// Reserve space for the file
 

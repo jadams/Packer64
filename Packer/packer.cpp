@@ -42,6 +42,7 @@ BYTE* GenerateKey()
 	else
 	{
 		//DbgPrint("[-] Failed to get context");
+		return nullptr;
 	}
 
 	if (CryptGenRandom(		// Generate a random KEY_LEN key
@@ -54,6 +55,7 @@ BYTE* GenerateKey()
 	else
 	{
 		//DbgPrint("[-] Failed to generate random");
+		return nullptr;
 	}
 
 	if (CryptReleaseContext(hCryptProv, 0))
@@ -75,28 +77,68 @@ BYTE* GenerateKey()
 
 bool EncryptPE(std::vector<BYTE>& bin)
 {
-	BYTE* pbKey;
+	BYTE* pbKey = nullptr;
 	pbKey = GenerateKey();
-	CRC4* rc4;
+	if (pbKey == nullptr)
+	{
+		return false;
+	}
+	CRC4* rc4 = nullptr;
 	rc4 = new CRC4{};
 	rc4->Initialize(pbKey, KEY_LEN);
+	if (rc4 == nullptr)
+	{
+		delete rc4;
+		return false;
+	}
 	rc4->RC4(&bin.front(), bin.size());
+	if (bin.size() < 1)
+	{
+		delete rc4;
+		return false;
+	}
 	delete rc4;
 	bin.insert(bin.end(), pbKey, pbKey + KEY_LEN);
+	if (bin.size() < 1)
+	{
+		return false;
+	}
 	return true;
 }
 
 bool CompressPE(std::vector<BYTE>& bin)
 {
-	qlz_state_compress* state_compress{};
-	state_compress = new qlz_state_compress;
+	qlz_state_compress* state_compress = nullptr;
+	state_compress = new qlz_state_compress{};
+	if (state_compress == nullptr)
+	{
+		delete state_compress;
+		return false;
+	}
 	size_t csize;
 	csize = bin.size() + 400;
+	if (csize < 1)
+	{
+		delete state_compress;
+		return false;
+	}
 	char* cbin{};
 	cbin = new char[csize];
 	size_t ncsize = qlz_compress(&bin.front(), cbin, bin.size(), state_compress);
+	if (ncsize < 1)
+	{
+		delete state_compress;
+		delete[] cbin;
+		return false;
+	}
 	std::copy(cbin, cbin + ncsize, &bin.front());
 	bin.resize(ncsize);
+	if (bin.size() < 1)
+	{
+		delete state_compress;
+		delete[] cbin;
+		return false;
+	}
 	delete state_compress;
 	delete[] cbin;
 	return true;
@@ -109,8 +151,6 @@ bool WritePE(std::vector<BYTE> bin, const char* filename)
 	if (file.is_open())
 	{
 		file.unsetf(std::ios::skipws);			// Fix pooping on newlines
-
-		std::streampos size_of_pe = bin.size();
 
 		std::copy(bin.begin(), bin.end(), std::ostreambuf_iterator<char>(file));
 
@@ -129,34 +169,79 @@ int main(int argc, char* argv[])
 	USES_CONVERSION;
 
 	std::vector<BYTE> bin = OpenPE(argv[1]);
+	if (bin.size() < 1)
+	{
+		return EXIT_FAILURE;
+	}
 	std::cout << "[Open] Size: " << bin.size() << std::endl;
 
-	CompressPE(bin);
+	if (!CompressPE(bin))
+	{
+		return EXIT_FAILURE;
+	}
 	std::cout << "[Compression] Size: " << bin.size() << std::endl;
 
-	EncryptPE(bin);
+	if (!EncryptPE(bin))
+	{
+		return EXIT_FAILURE;
+	}
 	std::cout << "[Encryption] Size: " << bin.size() << std::endl;
 
 
 	std::vector<BYTE> stub = OpenPE("PackerStub.exe");
+	if (stub.size() < 1)
+	{
+		return EXIT_FAILURE;
+	}
 	std::cout << "[Stub] Size: " << stub.size() << std::endl;
 
 	BYTE* bNoise = GenerateKey();
+	if (bNoise == nullptr)
+	{
+		return EXIT_FAILURE;
+	}
 	std::vector<BYTE> vbNoise(bNoise, bNoise+KEY_LEN);
+	if (vbNoise.size() < 1)
+	{
+		return EXIT_FAILURE;
+	}
 	stub.insert(stub.end(), vbNoise.begin(), vbNoise.end());
+	if (stub.size() < 1)
+	{
+		return EXIT_FAILURE;
+	}
 	std::cout << "[Stub+Noise] Size: " << stub.size() << std::endl;
 
 	stub.insert(stub.end(), bin.begin(), bin.end());
+	if (stub.size() < 1)
+	{
+		return EXIT_FAILURE;
+	}
 	std::cout << "[Stub+Noise+Bin] Size: " << stub.size() << std::endl;
 
 	size_t stSize = bin.size();
+	if (stSize < 1)
+	{
+		return EXIT_FAILURE;
+	}
 	std::vector<BYTE> vbSize;
 	vbSize.reserve(sizeof(stSize));
 	vbSize.assign(reinterpret_cast<BYTE*>(&stSize), reinterpret_cast<BYTE*>(&stSize) + sizeof(stSize));
+	if (vbSize.size() < 1)
+	{
+		return EXIT_FAILURE;
+	}
 	
 	stub.insert(stub.end(), vbSize.begin(), vbSize.end());
+	if (stub.size() < 1)
+	{
+		return EXIT_FAILURE;
+	}
 	std::cout << "[Stub+Noise+Bin+Size] Size: " << stub.size() << std::endl;
-	WritePE(stub, argv[2]);
+	if (!WritePE(stub, argv[2]))
+	{
+		return EXIT_FAILURE;
+	}
 
 	return EXIT_SUCCESS;
 }
