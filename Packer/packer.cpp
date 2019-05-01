@@ -166,31 +166,42 @@ bool WritePE(std::vector<BYTE> bin, const char* filename)
 
 int main(int argc, char* argv[])
 {
+	if (argc < 3)
+	{
+		std::cerr << argv[0] << " [exe to be packed] [name of packed output]" << std::endl;
+		return EXIT_FAILURE;
+	}
+
 	USES_CONVERSION;
 
 	std::vector<BYTE> bin = OpenPE(argv[1]);
 	if (bin.size() < 1)
 	{
+		std::cerr << "[ERROR] Could not open " << argv[1] << std::endl;
 		return EXIT_FAILURE;
 	}
-	std::cout << "[Open] Size: " << bin.size() << std::endl;
+	std::cout << "[Bin Open] Size: " << bin.size() << std::endl;
 
 	if (!CompressPE(bin))
 	{
+		std::cerr << "[ERROR] Could not compress bin" << std::endl;
 		return EXIT_FAILURE;
 	}
-	std::cout << "[Compression] Size: " << bin.size() << std::endl;
+	std::cout << "[Bin Compression] Size: " << bin.size() << std::endl;
 
 	if (!EncryptPE(bin))
 	{
+		std::cerr << "[ERROR] Could not encrypt bin" << std::endl;
 		return EXIT_FAILURE;
 	}
-	std::cout << "[Encryption] Size: " << bin.size() << std::endl;
+	std::cout << "[Bin Encryption] Size: " << bin.size() << std::endl;
 
 
 	std::vector<BYTE> stub = OpenPE("PackerStub.exe");
 	if (stub.size() < 1)
 	{
+		std::cerr << "[ERROR] Could not open PackerStub.exe" << std::endl
+			<< "[ERROR] PackerStub.exe must be in same directory as " << argv[0] << std::endl;
 		return EXIT_FAILURE;
 	}
 	std::cout << "[Stub] Size: " << stub.size() << std::endl;
@@ -198,16 +209,19 @@ int main(int argc, char* argv[])
 	BYTE* bNoise = GenerateKey();
 	if (bNoise == nullptr)
 	{
+		std::cerr << "[ERROR] Could not generate noise" << std::endl;
 		return EXIT_FAILURE;
 	}
 	std::vector<BYTE> vbNoise(bNoise, bNoise+KEY_LEN);
 	if (vbNoise.size() < 1)
 	{
+		std::cerr << "[ERROR] Could not generate noise" << std::endl;
 		return EXIT_FAILURE;
 	}
 	stub.insert(stub.end(), vbNoise.begin(), vbNoise.end());
 	if (stub.size() < 1)
 	{
+		std::cerr << "[ERROR] Could not insert noise" << std::endl;
 		return EXIT_FAILURE;
 	}
 	std::cout << "[Stub+Noise] Size: " << stub.size() << std::endl;
@@ -215,6 +229,7 @@ int main(int argc, char* argv[])
 	stub.insert(stub.end(), bin.begin(), bin.end());
 	if (stub.size() < 1)
 	{
+		std::cerr << "[ERROR] Could not insert bin" << std::endl;
 		return EXIT_FAILURE;
 	}
 	std::cout << "[Stub+Noise+Bin] Size: " << stub.size() << std::endl;
@@ -229,17 +244,20 @@ int main(int argc, char* argv[])
 	vbSize.assign(reinterpret_cast<BYTE*>(&stSize), reinterpret_cast<BYTE*>(&stSize) + sizeof(stSize));
 	if (vbSize.size() < 1)
 	{
+		std::cerr << "[ERROR] Could not get bin size" << std::endl;
 		return EXIT_FAILURE;
 	}
 	
 	stub.insert(stub.end(), vbSize.begin(), vbSize.end());
 	if (stub.size() < 1)
 	{
+		std::cerr << "[ERROR] Could not insert bin size" << std::endl;
 		return EXIT_FAILURE;
 	}
 	std::cout << "[Stub+Noise+Bin+Size] Size: " << stub.size() << std::endl;
 	if (!WritePE(stub, argv[2]))
 	{
+		std::cerr << "[ERROR] Could write " << argv[2] << std::endl;
 		return EXIT_FAILURE;
 	}
 
